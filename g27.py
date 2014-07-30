@@ -14,6 +14,22 @@ example::
     3, 5: value, little endian
     6: group
     7: axis
+
+NOTE! From here on, I talk big endian -- also in hex!
+
+Wheel values::
+
+            left               dead           right
+            <-------------------XX---------------->
+    dec     32769      65535     0      1     32767
+    hex     80 01      ff ff  00 00 00 01     7F FF
+
+
+Pedal values:
+
+- no pressure: 7F FF
+- halfway: 00 00
+- full: 80 01
 """
 from binascii import hexlify
 
@@ -27,6 +43,7 @@ def powergenerator(start=0):
 
 
 class Bytewurst(object):
+
     def __init__(self, bs):
         self.raw = bs
         self.ints = map(ord, bs)
@@ -36,19 +53,22 @@ class Bytewurst(object):
 
     @property
     def int(self):
-        """
-        For "01 00 03 0A" ints would be [1, 0, 3, 10]. This returns
-        (1 * 16777216) + (0 * 65536) + (3 * 256) + (10 * 1).
-        The expression below does that in reverse order, e.g.
-        (10 * 1) + (3 * 256) + (0 * 65536) + (1 * 16777216)
+        r"""
+        For "01 00 03 0A" ints would be [1, 0, 3, 10], so::
 
             >>> bs = '\x01\x00\x03\x0A'
+            >>> bw = Bytewurst(bs)
+            >>> bw.int == (1 * 1) + (0 * 256) + (3 * 512) + (10 * 16777216)
+            True
         """
-        return sum(a * b for a, b in zip(reversed(self.ints), powergenerator()))
+        return sum(a * b for a, b in zip(self.ints, powergenerator()))
+
+    def hexLE(self):
+        return hexlify(self.raw)
 
     @property
-    def hex(self):
-        return hexlify(self.raw)
+    def bits(self):
+        return ' '.join([format(x, '08b') for x in self.ints])
 
 
 BUTTON2NAME = """
@@ -88,7 +108,18 @@ button2namedict = dict(line.split('=') for line in BUTTON2NAME.strip().split('\n
 class Button(Bytewurst):
     def __init__(self, bs):
         super(Button, self).__init__(bs)
-        self.name = button2namedict.get(self.hex, 'UNKNOWN: %s' % self.hex)
+        self.name = button2namedict.get(self.hexLE(), 'UNKNOWN: %s' % self.hexLE())
+
+
+class Value(Bytewurst):
+    def __repr__(self):
+        if self.int == 0:
+            return '  off'
+        elif self.int == 1:
+            return '   on'
+        else:
+            print self.hexLE()
+            return '%5d' % self.int
 
 
 class Message(object):
@@ -103,13 +134,14 @@ class Message(object):
         self.raw_id = bs[6:8]
         self.ints = map(ord, bs)
         self.sequence = Bytewurst(bs[0:4])
-        self.value = Bytewurst(bs[4:6])
+        self.value = Value(bs[4:6])
         self.button = Button(bs[6:8])
 
     def __repr__(self):
-        values = (self.sequence.int, self.value, self.button.name)
+        values = (self.sequence.hexLE(), self.value, self.button.name)
         return '  '.join(map(str, values))
 
+    @property
     def json(self):
         xs = (
             ('sequence', self.sequence.int),
@@ -120,17 +152,19 @@ class Message(object):
         #xs = zip(attrs, (getattr(self, x) for x in attrs))
         return '{\n  ' + '\n  '.join('%s: %s' % x for x in xs) + '\n}'
 
-    def hex(self):
+    def hexLE(self):
         """
-        Human-readable hex format
-
-        Space-separated every single byte
+        Human-readable hex format. LITTLE ENDIAN!
         """
         return ' '.join(self.FMT_HEX % x for x in self.ints)
 
     @property
+    def bit(self):
+        return ' '.join([self.sequence.bits, self.value.bits, self.button.bits])
+
+    @property
     def debug(self):
-        self.button.hex
+        self.button.hexLE()
 
     @property
     def bytewurst_hex(self):
@@ -154,10 +188,14 @@ class Message(object):
         return ' '.join(self.FMT_DEC % x for x in self.ints)
 
 
+def dump_messages():
+    with open('/dev/input/js0', 'rb') as device:
+        while True:
+            bs = device.read(8)
+            message = Message(bs)
+            print message
+            message.debug
+
+
 if __name__ == '__main__':
-    pipe = open('/dev/input/js0', 'rb')
-    while True:
-        bs = pipe.read(8)
-        message = Message(bs)
-        print message
-        message.debug
+    dump_messages()
