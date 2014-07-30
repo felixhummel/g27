@@ -58,7 +58,7 @@ class Bytewurst(object):
 
             >>> bs = '\x01\x00\x03\x0A'
             >>> bw = Bytewurst(bs)
-            >>> bw.int == (1 * 1) + (0 * 256) + (3 * 512) + (10 * 16777216)
+            >>> bw.int == (1 * 1) + (0 * 256) + (3 * 65536) + (10 * 16777216)
             True
         """
         return sum(a * b for a, b in zip(self.ints, powergenerator()))
