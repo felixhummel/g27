@@ -46,7 +46,7 @@ class Bytewurst(object):
 
     def __init__(self, bs):
         self.raw = bs
-        self.ints = map(ord, bs)
+        self.ints = [x for x in bs]
 
     def __repr__(self):
         return ' '.join(map(hexlify, self.raw))
@@ -102,7 +102,11 @@ BUTTON2NAME = """
 0111=gear 6
 0116=gear R
 """
-button2namedict = dict(line.split('=') for line in BUTTON2NAME.strip().split('\n'))
+def f():
+    for line in BUTTON2NAME.strip().split('\n'):
+        a, b = line.split('=')
+        yield a.encode('ascii'), b
+button2namedict = dict(f())
 
 
 class Button(Bytewurst):
@@ -118,7 +122,7 @@ class Value(Bytewurst):
         elif self.int == 1:
             return '   on'
         else:
-            print self.hexLE()
+            print(self.hexLE())
             return '%5d' % self.int
 
 
@@ -132,7 +136,7 @@ class Message(object):
         self.raw_seq = bs[0:4]
         self.raw_value = bs[4:6]
         self.raw_id = bs[6:8]
-        self.ints = map(ord, bs)
+        self.ints = [x for x in bs]
         self.sequence = Bytewurst(bs[0:4])
         self.value = Value(bs[4:6])
         self.button = Button(bs[6:8])
@@ -193,7 +197,7 @@ def dump_messages():
         while True:
             bs = device.read(8)
             message = Message(bs)
-            print message
+            print(message)
             message.debug
 
 
