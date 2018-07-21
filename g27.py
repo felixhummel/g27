@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 """
-http://upgrayd.blogspot.de/2011/03/logitech-dual-action-usb-gamepad.html
-
-G27
-===
-example::
+Example::
 
     A0 B7 A3 04 5C 7D 02 02
      0  1  2  3  4  5  6  7
@@ -93,7 +89,7 @@ def powergenerator(start=0):
         i += 1
 
 
-class Bytewurst(object):
+class Bytewurst:
 
     def __init__(self, bs):
         self.raw = bs
@@ -143,7 +139,7 @@ class Value(Bytewurst):
         return _normalize(self.int)
 
 
-class Message(object):
+class Message:
 
     def __init__(self, bs):
         self.bs = bs
@@ -176,39 +172,82 @@ class Message(object):
         return ' '.join(f'{x:03d}' for x in self.ints)
 
 
+class G27:
+    """
+    >>> import g27
+    >>> wheel = g27.G27()
+    >>> wheel.handlers.append(print)
+    >>> wheel.loop()
 
-_IS_PRESSED = False
-def gas_pressed(bs):
-    global _IS_PRESSED
-    msg = Message(bs)
-    if msg.button.name != 'gas':
-        return
-    x = msg.value.normalized
-    if x < 0.5:
-        if not _IS_PRESSED:
-            _IS_PRESSED = True
-            print('press')
-    else:
-        if _IS_PRESSED:
-            print('release')
-        _IS_PRESSED = False
+    Other examples:
+
+    >>> wheel.handlers = [lambda msg: print(msg.bits)]
+    >>> wheel.handlers = [lambda msg: print(msg.hex)]
+    >>> wheel.handlers = [lambda msg: print(msg.dec)]
+    >>> wheel.handlers = [lambda msg: print(msg.grouped_hex)]
+
+    >>> wheel.handlers = [g27.PressHandler('gas', lambda: print('pressed'))]
+    """
+    def __init__(self, path='/dev/input/js0'):
+        self.path = path
+        self.handlers = []
+
+    def loop(self):
+        with open(self.path, 'rb') as device:
+            while True:
+                bs = device.read(8)
+                msg = Message(bs)
+                for handler in self.handlers:
+                    handler(msg)
 
 
-def loop(*handlers):
-    with open('/dev/input/js0', 'rb') as device:
-        while True:
-            bs = device.read(8)
-            for handler in handlers:
-                handler(bs)
+class PressHandler:
+    """
+    Get a single event per press. Optionally get a release event.
+
+    >>> on_gas_press = g27.PressHandler('gas', lambda: print('press'))
+    >>> wheel.handlers = [on_gas_press]
+    >>> wheel.loop()
+    """
+    def __init__(self, button_name=None, on_press=None, on_release=None, press_value=0.5, release_value=0.5):
+        self.is_pressed = False
+        self.button_name = button_name
+        self.press_value = press_value
+        self.release_value = release_value
+        assert self.press_value <= self.release_value, 'press_value must be less than release value; range is 0...1'
+        if on_press is not None:
+            self.on_press = on_press
+        if on_release is not None:
+            self.on_release = on_release
+
+    def on_press(self):
+        pass
+
+    def on_release(self):
+        pass
+
+    def __call__(self, msg):
+        x = msg.value.normalized
+        if self.button_name is not None and msg.button.name != self.button_name:
+            return
+        if x < 0.5:
+            if not self.is_pressed:
+                self.is_pressed = True
+                self.on_press()
+        else:
+            if self.is_pressed:
+                self.on_release()
+            self.is_pressed = False
+
+
+def main():
+    """
+    Print nicely formatted event messages
+    """
+    wheel = G27()
+    wheel.handlers = [print]
+    wheel.loop()
 
 
 if __name__ == '__main__':
-    loop(
-        # lambda bs: print(Message(bs)),
-        gas_pressed,
-        # print,
-        # lambda bs: print(Message(bs).bits),
-        # lambda bs: print(Message(bs).hex),
-        # lambda bs: print(Message(bs).dec),
-        # lambda bs: print(Message(bs).grouped_hex),
-    )
+    main()
