@@ -176,6 +176,24 @@ class Message(object):
         return ' '.join(f'{x:03d}' for x in self.ints)
 
 
+
+_IS_PRESSED = False
+def gas_pressed(bs):
+    global _IS_PRESSED
+    msg = Message(bs)
+    if msg.button.name != 'gas':
+        return
+    x = msg.value.normalized
+    if x < 0.5:
+        if not _IS_PRESSED:
+            _IS_PRESSED = True
+            print('press')
+    else:
+        if _IS_PRESSED:
+            print('release')
+        _IS_PRESSED = False
+
+
 def loop(*handlers):
     with open('/dev/input/js0', 'rb') as device:
         while True:
@@ -186,7 +204,8 @@ def loop(*handlers):
 
 if __name__ == '__main__':
     loop(
-        lambda bs: print(Message(bs)),
+        # lambda bs: print(Message(bs)),
+        gas_pressed,
         # print,
         # lambda bs: print(Message(bs).bits),
         # lambda bs: print(Message(bs).hex),
