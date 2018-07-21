@@ -34,6 +34,19 @@ Pedal values:
 from binascii import hexlify
 
 
+# 32769 -> 0
+# 0 -> 0.5
+# 65535 -> 0.49
+# 32767 -> 1
+def _normalize(x):
+    if 32769 <= x <= 65535:
+        return (x - 32769) / 65535
+    elif 0 == x:
+        return 0.5
+    elif 0 < x <= 32767:
+        return (x + 32768) / 65535
+
+
 def powergenerator(start=0):
     """Generate powers of 256"""
     i = start
@@ -111,7 +124,7 @@ button2namedict = dict(f())
 
 class Button(Bytewurst):
     def __init__(self, bs):
-        super(Button, self).__init__(bs)
+        super().__init__(bs)
         self.name = button2namedict.get(self.hexLE(), 'UNKNOWN: %s' % self.hexLE())
 
 
@@ -124,6 +137,10 @@ class Value(Bytewurst):
         else:
             print(self.hexLE())
             return '%5d' % self.int
+
+    @property
+    def normalized(self):
+        return _normalize(self.int)
 
 
 class Message(object):
@@ -142,19 +159,7 @@ class Message(object):
         self.button = Button(bs[6:8])
 
     def __repr__(self):
-        values = (self.sequence.hexLE(), self.value, self.button.name)
-        return '  '.join(map(str, values))
-
-    @property
-    def json(self):
-        xs = (
-            ('sequence', self.sequence.int),
-            ('value', self.value),
-            ('button', self.button),
-        )
-        #attrs = ('sequence', 'value', 'button')
-        #xs = zip(attrs, (getattr(self, x) for x in attrs))
-        return '{\n  ' + '\n  '.join('%s: %s' % x for x in xs) + '\n}'
+        return f'{self.sequence.int} {self.button.name:>8} {self.value.normalized:5.0%}'
 
     def hexLE(self):
         """
@@ -176,15 +181,7 @@ class Message(object):
 
     @property
     def grouped_hex(self):
-        return ' '.join(map(hexlify, (self.raw_seq, self.raw_value, self.raw_id)))
-
-    @property
-    def grouped_hex2(self):
-        return '%02x %02x %02x' % (self.sequence, self.value, self.button)
-
-    @property
-    def fasthex(self):
-        return hexlify(self.bs)
+        return f'{self.sequence.int:06x} {self.value.int:04x} {self.button.int:04x}'
 
     @property
     def dec(self):
@@ -192,14 +189,20 @@ class Message(object):
         return ' '.join(self.FMT_DEC % x for x in self.ints)
 
 
-def dump_messages():
+def loop(handler):
     with open('/dev/input/js0', 'rb') as device:
         while True:
             bs = device.read(8)
-            message = Message(bs)
-            print(message)
-            message.debug
+            handler(bs)
+
+
+def print_message(bs):
+    message = Message(bs)
+    print(message)
 
 
 if __name__ == '__main__':
-    dump_messages()
+    loop(print_message)
+    # loop(print)
+    # loop(lambda x: print(Message(x).grouped_hex))
+    # loop(lambda x: print(Message(x).grouped_hex))
