@@ -76,7 +76,8 @@ class Bytewurst(object):
         """
         return sum(a * b for a, b in zip(self.ints, powergenerator()))
 
-    def hexLE(self):
+    @property
+    def hex(self):
         return hexlify(self.raw)
 
     @property
@@ -125,7 +126,7 @@ button2namedict = dict(f())
 class Button(Bytewurst):
     def __init__(self, bs):
         super().__init__(bs)
-        self.name = button2namedict.get(self.hexLE(), 'UNKNOWN: %s' % self.hexLE())
+        self.name = button2namedict.get(self.hex, 'UNKNOWN: %s' % self.hex)
 
 
 class Value(Bytewurst):
@@ -135,7 +136,7 @@ class Value(Bytewurst):
         elif self.int == 1:
             return '   on'
         else:
-            print(self.hexLE())
+            print(self.hex)
             return '%5d' % self.int
 
     @property
@@ -161,7 +162,8 @@ class Message(object):
     def __repr__(self):
         return f'{self.sequence.int} {self.button.name:>8} {self.value.normalized:5.0%}'
 
-    def hexLE(self):
+    @property
+    def hex(self):
         """
         Human-readable hex format. LITTLE ENDIAN!
         """
@@ -170,14 +172,6 @@ class Message(object):
     @property
     def bit(self):
         return ' '.join([self.sequence.bits, self.value.bits, self.button.bits])
-
-    @property
-    def debug(self):
-        self.button.hexLE()
-
-    @property
-    def bytewurst_hex(self):
-        return '%s %s %s' % (self.sequence, self.value, self.button)
 
     @property
     def grouped_hex(self):
@@ -205,4 +199,4 @@ if __name__ == '__main__':
     loop(print_message)
     # loop(print)
     # loop(lambda x: print(Message(x).grouped_hex))
-    # loop(lambda x: print(Message(x).grouped_hex))
+    # loop(lambda x: print(Message(x).hex))
